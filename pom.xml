@@ -13,48 +13,40 @@
 		<maven.compiler.target>25</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<!-- Centralized Cucumber version -->
-        <cucumber.version>7.33.0</cucumber.version>
+		<cucumber.version>7.33.0</cucumber.version>
 	</properties>
 	<dependencies>
-		 <!-- Core Cucumber runtime -->
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-core</artifactId>
-            <version>${cucumber.version}</version>
-            <scope>test</scope>
-        </dependency>
- 
-        <!-- Cucumber Java bindings -->
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-java</artifactId>
-            <version>${cucumber.version}</version>
-            <scope>test</scope>
-        </dependency>
- 
-        <!-- Cucumber TestNG integration -->
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-testng</artifactId>
-            <version>${cucumber.version}</version>
-            <scope>test</scope>
-        </dependency>
- 
-        <!-- TestNG framework -->
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>7.9.0</version>
-            <scope>test</scope>
-        </dependency>
- 
-        <!-- Dependency Injection support (optional, for sharing state) -->
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-picocontainer</artifactId>
-            <version>${cucumber.version}</version>
-            <scope>test</scope>
-        </dependency><!-- Add your dependencies here -->
+		<!-- Cucumber Java bindings -->
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-java</artifactId>
+			<version>${cucumber.version}</version>
+		</dependency>
+
+		<!-- Cucumber TestNG integration -->
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-testng</artifactId>
+			<version>${cucumber.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+
+		<!-- TestNG framework -->
+		<dependency>
+			<groupId>org.testng</groupId>
+			<artifactId>testng</artifactId>
+			<version>7.9.0</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Dependency Injection support (optional, for sharing state) -->
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-picocontainer</artifactId>
+			<version>${cucumber.version}</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
@@ -67,17 +59,17 @@
 					<target>25</target>
 				</configuration>
 			</plugin>
-			  <!-- Surefire plugin to run TestNG + Cucumber tests -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-                <configuration>
-                    <includes>
-                        <include>**/RunCucumberTest.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
+			<!-- Surefire plugin to run TestNG + Cucumber tests -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<includes>
+						<include>**/RunCucumberTest.java</include>
+					</includes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 </project>
