@@ -1,56 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN" monitorInterval="60">
-    <!-- Properties for reuse -->
-    <Properties>
-        <!-- Change paths as needed -->
-        <!-- Default to target/logs; allow override via -DLOG_DIR=/path -->
-        <Property name="logDir">${sys:LOG_DIR:-target/logs}</Property>
-        <Property name="logFileName">application.log</Property>
-        <!-- Pattern: date time | level | thread | logger | message -->
-        <Property name="pattern">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%throwable%n</Property>
-    </Properties>
+	<Properties>
+		<!-- Root logs dir fixed -->
+		<Property name="logRootDir">logs</Property>
  
-    <Appenders>
-        <!-- RollingFile with timestamped file names -->
-        <RollingFile name="RollingFile"
-                     fileName="${logDir}/${logFileName}"
-                     filePattern="${logDir}/archive/%d{yyyy-MM}/app-%d{yyyy-MM-dd-HH}.%i.log.gz"
-                     bufferedIo="true"
-                     immediateFlush="false">
-            <PatternLayout pattern="${pattern}"/>
-            <Policies>
-                <!-- Roll hourly -->
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <!-- Also roll when file reaches 100 MB -->
-                <SizeBasedTriggeringPolicy size="100 MB"/>
-            </Policies>
-            <!-- Keep last 30 days or 1000 files, whichever comes first -->
-            <DefaultRolloverStrategy max="1000">
-                <Delete basePath="${logDir}/archive" maxDepth="2">
-                    <IfFileName glob="*/app-*.log.gz"/>
-                    <IfLastModified age="30d"/>
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
+		<!-- Resolution: JVM -> env -> test default -->
+		<Property name="defaultEnv">test</Property>
+		<Property name="envName">${sys:ENV:-${sys:env:-${env:ENV:-${env:env:-${defaultEnv}}}}}</Property>
  
-        <!-- Console for local debugging -->
-        <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="${pattern}"/>
-        </Console>
-    </Appenders>
+		<!-- Compose the final logDir -->
+		<Property name="logDir">${logRootDir}/${envName}</Property>
  
-    <!-- Use Async Loggers -->
-    <Loggers>
-        <!-- Example: more verbose for your package -->
-        <AsyncLogger name="com.cro" level="info" additivity="false">
-            <AppenderRef ref="RollingFile"/>
-            <AppenderRef ref="Console"/>
-        </AsyncLogger>
  
-        <!-- Root logger -->
-        <AsyncRoot level="info">
-            <AppenderRef ref="RollingFile"/>
-            <AppenderRef ref="Console"/>
-        </AsyncRoot>
-    </Loggers>
+		<!-- Timestamp captured at config load (run start) -->
+		<Property name="startTime">${date:yyyy-MM-dd_HH-mm-ss}</Property>
+ 
+		<!-- Use timestamped file name -->
+		<Property name="logFileName">application-${startTime}.log</Property>
+		<!-- Line pattern -->
+		<Property name="pattern">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t]
+			%logger{36} - %msg%throwable%n</Property>
+	</Properties>
+ 
+	<Appenders>
+ 
+		<File name="FileAppender"
+			fileName="${logDir}/${logFileName}"
+			bufferedIo="true"
+			immediateFlush="false">
+			<PatternLayout pattern="${pattern}" />
+		</File>
+ 
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="${pattern}" />
+		</Console>
+	</Appenders>
+ 
+	<Loggers>
+		<AsyncLogger name="com.cro" level="info" additivity="false">
+			<AppenderRef ref="FileAppender" />
+			<AppenderRef ref="Console" />
+		</AsyncLogger>
+		<AsyncRoot level="info">
+			<AppenderRef ref="FileAppender" />
+			<AppenderRef ref="Console" />
+		</AsyncRoot>
+	</Loggers>
 </Configuration>
