@@ -72,18 +72,23 @@
 			<artifactId>log4j-slf4j-impl</artifactId>
 			<version>2.25.3</version>
 		</dependency>
+
+
 		<!-- Optional for Async Loggers -->
 		<dependency>
 			<groupId>com.lmax</groupId>
 			<artifactId>disruptor</artifactId>
 			<version>3.4.4</version>
 		</dependency>
+
 		<!-- ExtentReports Cucumber7 adapter -->
 		<dependency>
 			<groupId>tech.grasshopper</groupId>
 			<artifactId>extentreports-cucumber7-adapter</artifactId>
 			<version>1.14.0</version>
 		</dependency>
+
+
 	</dependencies>
 	<build>
 		<plugins>
