@@ -19,6 +19,7 @@ import java.util.Properties;
  
  
 public final class PropertiesLoader {
+
 	// Flat filenames (no env subfolders)
 	private static final String ENV_FILE_TEMPLATE = "config/config-%s.properties";
  

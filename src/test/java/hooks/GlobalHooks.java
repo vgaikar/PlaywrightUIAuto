@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Properties;
  
 import com.aventstack.extentreports.service.ExtentService;
+import com.cro.settings.PathManager;
 import com.cro.settings.PropertiesLoader;
  
 import io.cucumber.java.AfterAll;
@@ -30,6 +31,10 @@ public class GlobalHooks {
 		return config.getProperty(key);
 	}
  
+	@BeforeAll
+	public static void setupProjectRequiredDirectories() {
+		PathManager.createRequiredDirs();
+	}
 	@BeforeAll
 	public static void loggingConfig() {
 		System.out.println("This is to load log4j2 logging configuration file");
