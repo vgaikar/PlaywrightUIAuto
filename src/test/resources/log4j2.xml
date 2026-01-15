@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="60">
+	<Properties>
+		<!-- Root logs dir fixed -->
+		<Property name="logRootDir">logs</Property>
+ 
+		<!-- Resolution: JVM -> env -> test default -->
+		<Property name="defaultEnv">test</Property>
+		<Property name="envName">${sys:ENV:-${sys:env:-${env:ENV:-${env:env:-${defaultEnv}}}}}</Property>
+ 
+		<!-- Compose the final logDir -->
+		<Property name="logDir">${logRootDir}/${envName}</Property>
+ 
+ 
+		<!-- Timestamp captured at config load (run start) -->
+		<Property name="startTime">${date:yyyy-MM-dd_HH-mm-ss}</Property>
+ 
+		<!-- Use timestamped file name -->
+		<Property name="logFileName">application-${startTime}.log</Property>
+		<!-- Line pattern -->
+		<Property name="pattern">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t]
+			%logger{36} - %msg [env=%X{env}]%throwable%n</Property>
+	</Properties>
+ 
+	<Appenders>
+ 
+		<File name="FileAppender"
+			fileName="${logDir}/${logFileName}"
+			bufferedIo="true"
+			immediateFlush="false">
+			<PatternLayout pattern="${pattern}" />
+		</File>
+ 
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="${pattern}" />
+		</Console>
+	</Appenders>
+ 
+	<Loggers>
+		<AsyncLogger name="com.cro" level="info" additivity="false">
+			<AppenderRef ref="FileAppender" />
+			<AppenderRef ref="Console" />
+		</AsyncLogger>
+		<AsyncRoot level="info">
+			<AppenderRef ref="FileAppender" />
+			<AppenderRef ref="Console" />
+		</AsyncRoot>
+	</Loggers>
+</Configuration>
