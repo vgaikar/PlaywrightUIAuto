@@ -1,54 +1,49 @@
 package hooks;
- 
+
 import java.io.IOException;
 import java.util.Properties;
- 
+
 import com.aventstack.extentreports.service.ExtentService;
+import com.cro.settings.PathConfig;
 import com.cro.settings.PathManager;
 import com.cro.settings.PropertiesLoader;
- 
+
 import io.cucumber.java.AfterAll;
 import io.cucumber.java.BeforeAll;
- 
+
 public class GlobalHooks {
 	private static Properties config;
- 
+
 	@BeforeAll
-	public static void loadConfig() throws IOException {
-		// Load properties once before all scenarios
-		config = PropertiesLoader.load();
-		String env = System.getProperty("env");
-		System.out.println("[GlobalHooks] Loaded config for env: " + env);
-		// Push environment/system info into Extent report (run-level)
-	    ExtentService.getInstance().setSystemInfo("Environment", env);
- 
+	public static void suiteInit() throws IOException {
+		// 1) Ensure output dirs exist (idempotent)
+		PathManager.createRequiredDirs();
+
+		// 2) Load env config once (cached)
+		config = PropertiesLoader.loadCached();
+		String env = PropertiesLoader.effectiveEnv();
+		System.out.println("[GlobalHooks] Loaded env config for: " + env);
+
+		// 3) Optional diagnostics: where path config came from + values
+		PathConfig.dump(msg -> System.out.println("[PathConfig] " + msg));
+
+		// 4) Extent System Info
+		ExtentService.getInstance().setSystemInfo("Environment", env);
+		ExtentService.getInstance().setSystemInfo("Base Dir", PathManager.baseDirPath().toString());
+		ExtentService.getInstance().setSystemInfo("Reports Dir", PathManager.reportDir().toString());
+		ExtentService.getInstance().setSystemInfo("Screenshots Dir", PathManager.screenshotDir().toString());
+		ExtentService.getInstance().setSystemInfo("Logs Dir", PathManager.logDir().toString());
+		ExtentService.getInstance().setSystemInfo("Downloads Dir", PathManager.downloadDir().toString());
 	}
- 
+
 	public static String getConfigValue(String key) {
-		if (config == null) {
+		if (config == null)
 			throw new IllegalStateException("Config not initialized. Did @BeforeAll run?");
-		}
 		return config.getProperty(key);
 	}
- 
-	@BeforeAll
-	public static void setupProjectRequiredDirectories() {
-		PathManager.createRequiredDirs();
-	}
-	@BeforeAll
-	public static void loggingConfig() {
-		System.out.println("This is to load log4j2 logging configuration file");
-	}
- 
-	@BeforeAll
-	public static void extentReportConfig() {
-		System.out.println("This is to load Extent Report configuration file");
-	}
- 
+
 	@AfterAll
 	public static void globalTeardown() {
-		System.out.println("Cleaning up resources including env, log4j2 and Extent Report.");
-		System.out.println("Order will figure out during actual implementation.");
+		System.out.println("Run completed. Cleanup if needed.");
 	}
- 
 }

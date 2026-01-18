@@ -1,198 +1,323 @@
 /*
-* This class will read properties file. I uses fallback mechanism as mentioned below:
+
+* This class will read properties file. This class is only for Classpath configs (under src/test/resources)
+
+* I uses fallback mechanism as mentioned below:
+
 * 1. If maven runtime property is passed it will pick it
+
 * 2. If not passed it will go to default properties section
-* 3. Also some property can be directly passed from maven like URL:http://abc.com
+
+* 3. Also some property can be directly passed from maven like URL:http://google.com
+
+* Classpath-first environment properties loader:
+
+*   Precedence: -DconfigUrl / CONFIG_URL  -> classpath: config/config-<env>.properties
+
+*
+
+* Provides cached variants for parallel runs.
+
 */
-
+ 
 package com.cro.settings;
-
+ 
 import java.io.FileNotFoundException;
+
 import java.io.IOException;
+
 import java.io.InputStream;
+
 import java.io.InputStreamReader;
+
 import java.io.Reader;
+
+import java.io.UncheckedIOException;
+
 import java.net.URI;
+
 import java.net.URL;
+
 import java.nio.charset.StandardCharsets;
+
 import java.util.Properties;
 
+import java.util.concurrent.ConcurrentHashMap;
+ 
 public final class PropertiesLoader {
 
-	// Flat filenames (no env subfolders)
 	private static final String ENV_FILE_TEMPLATE = "config/config-%s.properties";
 
-	// Default env discovery files (classpath)
-	private static final String TEST_DEFAULT_ENV_FILE = "config/config-test-default.properties";
-	private static final String MAIN_DEFAULT_ENV_FILE = "config/config-app-default.properties";
+    private static final String TEST_DEFAULT_ENV_FILE = "config/config-test-default.properties";
 
-	private PropertiesLoader() {
-		// this will avoid constructor overloading by external program
-	}
+    private static final String MAIN_DEFAULT_ENV_FILE = "config/config-app-default.properties";
 
-	/**
-	 * Entry point: resolve env strictly (no dev fallback), then load properties.
-	 */
-	public static Properties load() throws IOException {
-		String env = normalizeEnv(resolveEnvStrict());
-		return loadForEnv(env);
-	}
+// Cache: key is "URL::<spec>" or "CLASSPATH::<env>"
 
-	/**
-	 * Load properties for a given env (assumes env already resolved).
-	 */
-	public static Properties loadForEnv(String env) throws IOException {
-		String normalizedEnv = normalizeEnv(env);
-		if (!isNonBlank(normalizedEnv)) {
-			throw new IllegalArgumentException("env is required (dev/val/uat etc.).");
-		}
+    private static final ConcurrentHashMap<String, Properties> CACHE = new ConcurrentHashMap<>();
 
-		// 1) Allow direct URL/file override — highest priority
-		String urlSpec = firstNonBlank(System.getProperty("configUrl"), System.getenv("CONFIG_URL"));
-		if (isNonBlank(urlSpec)) {
-			return loadFromUrlOrFileSpec(urlSpec);
-		}
+    private PropertiesLoader() {
 
-		// 2) Classpath (TEST precedes MAIN automatically during test runs)
-		String resourcePath = String.format(ENV_FILE_TEMPLATE, normalizedEnv);
+    	//intentionally left blank to avoid constructor overloading
 
-		ClassLoader cl = Thread.currentThread().getContextClassLoader();
-		if (cl == null)
-			cl = PropertiesLoader.class.getClassLoader();
+    }
 
-		try (InputStream inputstream = cl.getResourceAsStream(resourcePath)) {
-			if (inputstream != null) {
-				Properties prop = new Properties();
-				try (Reader reader = new InputStreamReader(inputstream, StandardCharsets.UTF_8)) {
-					prop.load(reader); // correctly decodes UTF-8
-				}
+    // -------- Public API (non-cached) --------
+ 
+    public static Properties load() throws IOException {
 
-				return prop;
-			}
-		}
+        String env = normalizeEnv(resolveEnvStrict());
 
-		// Not found — list attempted location(s)
-		throw new FileNotFoundException("Config not found for env=" + normalizedEnv + ". Tried classpath: "
-				+ resourcePath + (isNonBlank(urlSpec) ? " and URL=" + urlSpec : ""));
+        return loadForEnv(env);
 
-	}
+    }
 
-	// ---------- Env resolution (STRICT: NO default 'dev') ----------
-	/**
-	 * Resolve env strictly: 1) -Denv 2) ENV env var 3) classpath test default file
-	 * 4) classpath main/app default file 5) else throw
-	 *
-	 * @throws IOException
-	 */
-	private static String resolveEnvStrict() throws IOException {
-		// 1) JVM property
-		String envProp = System.getProperty("env");
-		if (isNonBlank(envProp))
-			return envProp.trim();
+    public static Properties loadForEnv(String env) throws IOException {
 
-		// 2) ENV variable
-		String envVar = System.getenv("ENV");
-		if (isNonBlank(envVar))
-			return envVar.trim();
+    	String normalizedEnv = normalizeEnv(env);
 
-		// 3) Default from test file
-		String envFromTestDefault = readEnvFromClasspath(TEST_DEFAULT_ENV_FILE);
-		if (isNonBlank(envFromTestDefault))
-			return envFromTestDefault.trim();
+        if (!isNonBlank(normalizedEnv)) {
 
-		// 4) Default from main/app file
-		String envFromMainDefault = readEnvFromClasspath(MAIN_DEFAULT_ENV_FILE);
-		if (isNonBlank(envFromMainDefault))
-			return envFromMainDefault.trim();
+            throw new IllegalArgumentException("env is required (dev/val/uat etc.).");
 
-		// 5) Fail (no dev fallback)
-		throw new IllegalArgumentException("Environment not resolved. Expected one of:\n"
-				+ "  - JVM property: -Denv=<dev|val|uat>\n" + "  - Environment variable: ENV=<dev|val|uat>\n"
-				+ "  - Classpath default (test): " + TEST_DEFAULT_ENV_FILE + " with key 'env' or 'ENV'\n"
-				+ "  - Classpath default (main): " + MAIN_DEFAULT_ENV_FILE + " with key 'env' or 'ENV'\n");
+        }
 
-	}
+        String urlSpec = firstNonBlank(System.getProperty("configUrl"), System.getenv("CONFIG_URL"));
 
-	/**
-	 * Read env value from a classpath properties file using keys 'env' or 'ENV'.
-	 *
-	 * @param resourcePath classpath resource path
-	 * @return env value if found and non-blank, else null
-	 */
+        if (isNonBlank(urlSpec)) {
 
-	private static String readEnvFromClasspath(String resourcePath) throws IOException {
-		ClassLoader cl = Thread.currentThread().getContextClassLoader();
-		if (cl == null)
-			cl = PropertiesLoader.class.getClassLoader();
+            return loadFromUrlOrFileSpec(urlSpec);
 
-		try (InputStream inputstream = cl.getResourceAsStream(resourcePath)) {
-			if (inputstream == null)
-				return null;
-			Properties defaults = new Properties();
-			try (Reader reader = new InputStreamReader(inputstream, StandardCharsets.UTF_8)) {
-				defaults.load(reader); // correctly decodes UTF-8
-			}
+        }
 
-			// Case-insensitive search for "env"
-			for (String propName : defaults.stringPropertyNames()) {
-				if ("env".equalsIgnoreCase(propName)) {
-					String val = defaults.getProperty(propName);
-					if (isNonBlank(val)) {
-						return val.trim(); // normalize value
-					}
-				}
-			}
+        String resourcePath = String.format(ENV_FILE_TEMPLATE, normalizedEnv);
 
-			return null;
-		}
-	}
+        try (InputStream in = cl().getResourceAsStream(resourcePath)) {
 
-	// ---------- URL (and file spec) loader ----------
-	/**
-	 * Load properties from a URL spec. Supports http(s):// and file:///. If a plain
-	 * filesystem path is provided, attempts to read it directly as a file.
-	 */
-	private static Properties loadFromUrlOrFileSpec(String spec) throws IOException {
-		try {
-			URL url = URI.create(spec).toURL(); // http, https, file
-			try (InputStream inputstream = url.openStream()) {
-				Properties prop = new Properties();
-				try (Reader reader = new InputStreamReader(inputstream, StandardCharsets.UTF_8)) {
-					prop.load(reader); // correctly decodes UTF-8
-				}
-				return prop;
-			}
-		} catch (IllegalArgumentException e) {
-			// Plain filesystem path
-			try (InputStream inputstream = java.nio.file.Files.newInputStream(java.nio.file.Paths.get(spec))) {
-				Properties prop = new Properties();
-				try (Reader reader = new InputStreamReader(inputstream, StandardCharsets.UTF_8)) {
-					prop.load(reader); // correctly decodes UTF-8
-				}
-				return prop;
-			} catch (IOException io) {
-				throw new FileNotFoundException(
-						"Config URL/path not accessible: " + spec + " (" + io.getMessage() + ")");
-			}
-		}
-	}
+            if (in != null) {
 
-	// ---------- Helpers ----------
+                Properties prop = new Properties();
 
-	private static boolean isNonBlank(String s) {
-		return s != null && !s.trim().isEmpty();
-	}
+                try (Reader r = new InputStreamReader(in, StandardCharsets.UTF_8)) {
 
-	private static String firstNonBlank(String... values) {
-		for (String value : values) {
-			if (isNonBlank(value))
-				return value;
-		}
-		return null;
-	}
+                    prop.load(r);
 
-	private static String normalizeEnv(String env) {
-		return env == null ? null : env.trim().toLowerCase();
-	}
+                }
+
+                return prop;
+
+            }
+
+        }
+
+        throw new FileNotFoundException("Config not found for env=" + normalizedEnv +
+
+                ". Tried classpath: " + resourcePath +
+
+                (isNonBlank(urlSpec) ? " and URL=" + urlSpec : ""));
+
+    }
+
+// -------- Public API (cached) --------
+ 
+    public static Properties loadCached() throws IOException {
+
+        String env = normalizeEnv(resolveEnvStrict());
+
+        return loadForEnvCached(env);
+
+    }
+
+    public static Properties loadForEnvCached(String env) throws IOException {
+
+        String normalizedEnv = normalizeEnv(env);
+
+        if (!isNonBlank(normalizedEnv)) {
+
+            throw new IllegalArgumentException("env is required (dev/val/uat etc.).");
+
+        }
+
+        String key = cacheKeyForCurrentSource(normalizedEnv);
+
+        try {
+
+            return CACHE.computeIfAbsent(key, k -> {
+
+                try { return loadForEnv(normalizedEnv); }
+
+                catch (IOException e) { throw new UncheckedIOException(e); }
+
+            });
+
+        } catch (UncheckedIOException uioe) {
+
+            throw uioe.getCause();
+
+        }
+
+    }
+
+    public static String effectiveEnv() throws IOException {
+
+        return normalizeEnv(resolveEnvStrict());
+
+    }
+ 
+    public static void resetCache() {
+
+        CACHE.clear();
+
+    }
+
+// -------- Env resolution (STRICT) --------
+ 
+    private static String resolveEnvStrict() throws IOException {
+
+        String envProp = System.getProperty("env");
+
+        if (isNonBlank(envProp)) return envProp.trim();
+ 
+        String envVar = System.getenv("ENV");
+
+        if (isNonBlank(envVar)) return envVar.trim();
+ 
+        String test = readEnvFromClasspath(TEST_DEFAULT_ENV_FILE);
+
+        if (isNonBlank(test)) return test.trim();
+ 
+        String main = readEnvFromClasspath(MAIN_DEFAULT_ENV_FILE);
+
+        if (isNonBlank(main)) return main.trim();
+ 
+        throw new IllegalArgumentException(
+
+            "Environment not resolved. Expected one of:\n" +
+
+            "  - JVM property: -Denv=<dev|val|uat>\n" +
+
+            "  - Environment variable: ENV=<dev|val|uat>\n" +
+
+            "  - Classpath default (test): " + TEST_DEFAULT_ENV_FILE + " with key 'env' or 'ENV'\n" +
+
+            "  - Classpath default (main): " + MAIN_DEFAULT_ENV_FILE + " with key 'env' or 'ENV'\n"
+
+        );
+
+    }
+
+    private static String readEnvFromClasspath(String resourcePath) throws IOException {
+
+        try (InputStream in = cl().getResourceAsStream(resourcePath)) {
+
+            if (in == null) return null;
+
+            Properties defaults = new Properties();
+
+            try (Reader r = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+
+                defaults.load(r);
+
+            }
+
+            for (String name : defaults.stringPropertyNames()) {
+
+                if ("env".equalsIgnoreCase(name)) {
+
+                    String v = defaults.getProperty(name);
+
+                    if (isNonBlank(v)) return v.trim();
+
+                }
+
+            }
+
+            return null;
+
+        }
+
+    }
+
+// -------- URL/file loader --------
+ 
+    private static Properties loadFromUrlOrFileSpec(String spec) throws IOException {
+
+        try {
+
+            URL url = URI.create(spec).toURL(); // http, https, file
+
+            try (InputStream in = url.openStream();
+
+                 Reader r = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+
+                Properties p = new Properties();
+
+                p.load(r);
+
+                return p;
+
+            }
+
+        } catch (IllegalArgumentException e) {
+
+            try (InputStream in = java.nio.file.Files.newInputStream(java.nio.file.Paths.get(spec));
+
+                 Reader r = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+
+                Properties p = new Properties();
+
+                p.load(r);
+
+                return p;
+
+            } catch (IOException io) {
+
+                throw new FileNotFoundException("Config URL/path not accessible: " + spec + " (" + io.getMessage() + ")");
+
+            }
+
+        }
+
+    }
+
+// -------- Helpers --------
+ 
+    private static String cacheKeyForCurrentSource(String normalizedEnv) {
+
+        String urlSpec = firstNonBlank(System.getProperty("configUrl"), System.getenv("CONFIG_URL"));
+
+        return (isNonBlank(urlSpec)) ? ("URL::" + urlSpec) : ("CLASSPATH::" + normalizedEnv);
+
+    }
+ 
+    private static ClassLoader cl() {
+
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+
+        return (cl != null) ? cl : PropertiesLoader.class.getClassLoader();
+
+    }
+ 
+    private static boolean isNonBlank(String s) {
+
+        return s != null && !s.trim().isEmpty();
+
+    }
+ 
+    private static String firstNonBlank(String... values) {
+
+        for (String v : values) if (isNonBlank(v)) return v;
+
+        return null;
+
+    }
+ 
+    private static String normalizeEnv(String env) {
+
+        return env == null ? null : env.trim().toLowerCase();
+
+    }    
 
 }
+
+ 
