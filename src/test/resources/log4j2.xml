@@ -9,9 +9,9 @@
 		variable mentioned in properties file-->
 		<Property name="hardDefault">test</Property>
  
-		<!-- test file -> main file -> hard default -->
+		<!-- Pick env from CLI first, then OS environment, else fallback it normalize to env, ENV, Env-->
 		<Property name="defaultEnv">
-			${bundle:config.config-test-default:env:-${bundle:config.config-app-default:env:-${hardDefault}}}
+			${sys:env:-${sys:ENV:-${sys:Env:-${env:ENV:-${env:env:-${hardDefault}}}}}}
 		</Property>
  
 		<!-- Final envName with CLI/OS override, else file-based defaultEnv -->
