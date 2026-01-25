@@ -1,16 +1,5 @@
-/*
- * This class will read properties file. This class is only for Classpath configs (under src/test/resources)
- * I uses fallback mechanism as mentioned below:
- * 1. If maven runtime property is passed it will pick it
- * 2. If not passed it will go to default properties section
- * 3. Also some property can be directly passed from maven like URL:http://google.com
- * Classpath-first environment properties loader:
- *   Precedence: -DconfigUrl / CONFIG_URL  -> classpath: config/config-<env>.properties
- *
- * Provides cached variants for parallel runs.
- */
 package com.cro.settings;
- 
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,25 +14,25 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
- 
+
 public final class PropertiesLoader {
     private static final String ENV_FILE_TEMPLATE = "config/config-%s.properties";
     private static final String TEST_DEFAULT_ENV_FILE = "config/config-test-default.properties";
     private static final String MAIN_DEFAULT_ENV_FILE = "config/config-app-default.properties";
- 
+
     // Cache: key is "URL::<spec>" or "CLASSPATH::<env>" or "CLASSPATH::DEFAULTS"
     private static final ConcurrentHashMap<String, Properties> CACHE = new ConcurrentHashMap<>();
- 
+
     // Browser-related constants and default
     private static final String SYS_PROP_BROWSER = "browser";
     private static final String ENVVAR_BROWSER = "BROWSER";
     private static final String PROPKEY_BROWSER = "browser";
-    private static final String DEFAULT_BROWSER = "chrome";
- 
+    private static final String DEFAULT_BROWSER = "chrome";  //fallabck logic --> If no browser is found in properties, your loader silently falls back to chrome.
+
     private PropertiesLoader() {
         // intentionally left blank to avoid constructor overloading
     }
- 
+
     // ===== NEW ===== Case-insensitive Properties =====
     /**
      * A Properties variant that stores keys in lowercase (Locale.ROOT)
@@ -51,19 +40,19 @@ public final class PropertiesLoader {
      */
     private static final class CaseInsensitiveProperties extends Properties {
         private static final long serialVersionUID = 1L;
- 
+
         private static String norm(Object key) {
             if (key == null) return null;
 							
             if (!(key instanceof String)) return String.valueOf(key);
             return ((String) key).toLowerCase(Locale.ROOT);
         }
- 
+
         @Override
         public synchronized Object put(Object key, Object value) {
             return super.put(norm(key), value);
         }
- 
+
         @Override
         public synchronized void putAll(Map<?, ?> t) {
             for (Map.Entry<?, ?> e : t.entrySet()) {
@@ -71,17 +60,17 @@ public final class PropertiesLoader {
             }
 								
         }
- 
+
         @Override
         public String getProperty(String key) {
             return super.getProperty(norm(key));
         }
- 
+
         @Override
         public synchronized Object get(Object key) {
             return super.get(norm(key));
         }
- 
+
         @Override
         public boolean containsKey(Object key) {
             return super.containsKey(norm(key));
@@ -91,14 +80,14 @@ public final class PropertiesLoader {
         public synchronized Object setProperty(String key, String value) {
             return super.setProperty(norm(key), value);
         }
- 
+
         // stringPropertyNames() and propertyNames() will reflect normalized keys via super
         @Override
         public Set<String> stringPropertyNames() {
             return super.stringPropertyNames();								  
         }
     }
- 
+
     // -------- Public API (non-cached) --------
     public static Properties load() throws IOException {
         // Highest precedence: external URL/file override
@@ -106,43 +95,52 @@ public final class PropertiesLoader {
         if (isNonBlank(urlSpec)) {
             return loadFromUrlOrFileSpec(urlSpec);
         }
- 
+
         // 1) JVM property: -Denv=...
         String envProp = getSystemPropertyIgnoreCase("env"); // case-insensitive
         if (isNonBlank(envProp)) {
             return loadForEnv(envProp);
         }
- 
+
         // 2) Environment variable: ENV=...
         String envVar = getEnvVarIgnoreCase("ENV");
         if (isNonBlank(envVar)) {
             return loadForEnv(envVar);
         }
- 
-        // 3) Fallbacks (in exact order)
+
+        // 3) Fallbacks (in exact order), first resolve env if not found comeout (check in app-default), if found read URL, URL empty throw error
         Properties testDefaultProperties = tryLoadFromClasspath(TEST_DEFAULT_ENV_FILE);
         if (testDefaultProperties != null) {
-            String fallbackEnv = testDefaultProperties.getProperty("env");
-            if (fallbackEnv != null) {
-                System.setProperty("env", normalizeEnv(fallbackEnv));
+            String fallbackEnv = testDefaultProperties.getProperty("env");           
+            if (isNonBlank(fallbackEnv)) {
+            	System.setProperty("env", normalizeEnv(fallbackEnv));
+            	String baseUrl = testDefaultProperties.getProperty("base.url");
+            	if (!isNonBlank(baseUrl)) {
+            		throw new IllegalStateException("Missing required property 'base.url' in " + TEST_DEFAULT_ENV_FILE);
+            	}
+            	return testDefaultProperties; // only if env exists
             }
-            return testDefaultProperties;
         }
- 
+
         Properties mainDefaultProperties = tryLoadFromClasspath(MAIN_DEFAULT_ENV_FILE);
         if (mainDefaultProperties != null) {
-            String fallbackEnv = mainDefaultProperties.getProperty("env");
-            if (fallbackEnv != null) {
-                System.setProperty("env", normalizeEnv(fallbackEnv));
+            String fallbackEnv = mainDefaultProperties.getProperty("env");            
+            if (isNonBlank(fallbackEnv)) {
+            	System.setProperty("env", normalizeEnv(fallbackEnv));
+            	String baseUrl = mainDefaultProperties.getProperty("base.url");
+                if (!isNonBlank(baseUrl)) {
+                    throw new IllegalStateException("Missing required property 'base.url' in " + MAIN_DEFAULT_ENV_FILE);
+                }
+                return mainDefaultProperties; //last place to resolve env before throwing error
             }
-            return mainDefaultProperties;
+            
         }
         
-        // 4) Nothing worked -> hard fail
-        throw new FileNotFoundException("Environment not supplied and default configs not found. Tried classpath: "
+        // 4) If we get here, env was not resolved anywhere → fail fast
+        throw new FileNotFoundException("Environment not supplied and default configs not found or missing 'env'. Tried: "
                 + TEST_DEFAULT_ENV_FILE + ", " + MAIN_DEFAULT_ENV_FILE);
     }
- 
+
     public static Properties loadForEnv(String env) throws IOException {
         String normalizedEnv = normalizeEnv(env);
         if (!isNonBlank(normalizedEnv)) {
@@ -165,7 +163,7 @@ public final class PropertiesLoader {
         throw new FileNotFoundException("Config not found for env=" + normalizedEnv + ". Tried classpath: "
                 + resourcePath + (isNonBlank(urlSpec) ? " and URL=" + urlSpec : ""));
     }
- 
+
     // -------- Public API (cached) --------
     public static Properties loadCached() throws IOException {
         // Highest precedence: external URL/file override
@@ -184,53 +182,91 @@ public final class PropertiesLoader {
                 throw uioe.getCause();
             }
         }
- 
+
         // 1) JVM property: -Denv=...
         String envProp = getSystemPropertyIgnoreCase("env"); // case-insensitive
         if (isNonBlank(envProp)) {
             return loadForEnvCached(envProp);
         }
- 
+
         // 2) Environment variable: ENV=...
         String envVar = getEnvVarIgnoreCase("ENV");
         if (isNonBlank(envVar)) {
             return loadForEnvCached(envVar);
         }
- 
+
         // 3) Fallbacks (same order), cached with stable keys
         final String defaultCacheKey = "CLASSPATH::DEFAULTS";
         try {
             return CACHE.computeIfAbsent(defaultCacheKey, k -> {
                 try {
+                    // Try test-default first
                     Properties testCachedDefaultProperties = tryLoadFromClasspath(TEST_DEFAULT_ENV_FILE);
+                    Properties mainCachedDefaultProperties = tryLoadFromClasspath(MAIN_DEFAULT_ENV_FILE);
+
                     if (testCachedDefaultProperties != null) {
                         String fallbackEnv = testCachedDefaultProperties.getProperty("env");
-                        if (fallbackEnv != null) {
+                        String baseUrl = testCachedDefaultProperties.getProperty("base.url");
+                        if (isNonBlank(fallbackEnv)) {
                             System.setProperty("env", normalizeEnv(fallbackEnv));
+
+                            if (!isNonBlank(baseUrl)) {
+                                throw new IllegalStateException(
+                                    "Missing required property 'base.url' in " + TEST_DEFAULT_ENV_FILE
+                                );
+                            }
+
+                            System.out.println("[PropertiesLoader] Loaded properties from fallback: " 
+                                    + TEST_DEFAULT_ENV_FILE + " (env=" + fallbackEnv 
+                                    + ", base.url=" + baseUrl + ")");
+                            return testCachedDefaultProperties;
                         }
-                        return testCachedDefaultProperties;
                     }
- 
-                    Properties mainCachedDefaultProperties = tryLoadFromClasspath(MAIN_DEFAULT_ENV_FILE);
+
+                    // Then try main-default
                     if (mainCachedDefaultProperties != null) {
                         String fallbackEnv = mainCachedDefaultProperties.getProperty("env");
-                        if (fallbackEnv != null) {
+                        String baseUrl = mainCachedDefaultProperties.getProperty("base.url");
+                        if (isNonBlank(fallbackEnv)) {
                             System.setProperty("env", normalizeEnv(fallbackEnv));
+
+                            if (!isNonBlank(baseUrl)) {
+                                throw new IllegalStateException(
+                                    "Missing required property 'base.url' in " + MAIN_DEFAULT_ENV_FILE
+                                );
+                            }
+
+                            System.out.println("[PropertiesLoader] Loaded properties from fallback: " 
+                                    + MAIN_DEFAULT_ENV_FILE + " (env=" + fallbackEnv 
+                                    + ", base.url=" + baseUrl + ")");
+                            return mainCachedDefaultProperties;
                         }
-                        return mainCachedDefaultProperties;
                     }
-                    throw new FileNotFoundException("Environment not supplied and default configs not found. "
-                            + "Tried classpath: " + TEST_DEFAULT_ENV_FILE + ", " + MAIN_DEFAULT_ENV_FILE);
+
+                    // If neither fallback works, throw
+                    String testMsg = (testCachedDefaultProperties == null) ? " (not found)" : " (found but missing 'env/base.url')";
+                    String mainMsg = (mainCachedDefaultProperties == null) ? " (not found)" : " (found but missing 'env/base.url')";
+
+                    throw new FileNotFoundException(
+                        "Unable to resolve environment configuration!\n" +
+                        "  1) No '-Denv' JVM property was set.\n" +
+                        "  2) No 'ENV' environment variable was set.\n" +
+                        "  3) No valid external config URL/path found: "
+                            + firstNonBlank(getSystemPropertyIgnoreCase("configUrl"), getEnvVarIgnoreCase("CONFIG_URL")) + "\n" +
+                        "  4) Default fallback properties either missing or invalid:\n" +
+                            "     - " + TEST_DEFAULT_ENV_FILE + testMsg + "\n" +
+                            "     - " + MAIN_DEFAULT_ENV_FILE + mainMsg + "\n" +
+                        "Please ensure one of the above sources provides a valid 'env' and 'base.url'."
+                    );
+
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             });
         } catch (UncheckedIOException uioe) {
-            throw uioe.getCause();											
+            throw uioe.getCause();                                            
         }
-   
     }
- 
     public static Properties loadForEnvCached(String env) throws IOException {
         String normalizedEnv = normalizeEnv(env);
         if (!isNonBlank(normalizedEnv)) {
@@ -249,7 +285,7 @@ public final class PropertiesLoader {
             throw uioe.getCause();
         }
     }
- 
+
     public static String effectiveEnv() throws IOException {
         return normalizeEnv(resolveEnvStrict());
     }
@@ -257,32 +293,32 @@ public final class PropertiesLoader {
     public static void resetCache() {
         CACHE.clear();
     }
- 
+
     // -------- Env resolution (STRICT) --------
- 
+
     private static String resolveEnvStrict() throws IOException {
         // 1) JVM property: -Denv=...
         String envProp = getSystemPropertyIgnoreCase("env"); // case-insensitive
         if (isNonBlank(envProp)) return envProp.trim();
- 
+
         String envVar = getEnvVarIgnoreCase("ENV");
         if (isNonBlank(envVar)) return envVar.trim();																					   
   
- 
+
         String test = readEnvFromClasspath(TEST_DEFAULT_ENV_FILE);
         if (isNonBlank(test)) return test.trim();	
- 
+
         String main = readEnvFromClasspath(MAIN_DEFAULT_ENV_FILE);
 																						  
         if (isNonBlank(main)) return main.trim();
- 
+
         throw new IllegalArgumentException(errorLocation() + "Environment not resolved. Expected one of:\n"
                 + "  - JVM property: -Denv=<dev|val|uat>\n"
                 + "  - Environment variable: ENV=<dev|val|uat>\n"
                 + "  - Classpath default (test): " + TEST_DEFAULT_ENV_FILE + " with key 'env'\n"
                 + "  - Classpath default (main): " + MAIN_DEFAULT_ENV_FILE + " with key 'env'\n");
     }
- 
+
     private static String readEnvFromClasspath(String resourcePath) throws IOException {
         try (InputStream in = cl().getResourceAsStream(resourcePath)) {
             if (in == null) return null;
@@ -294,7 +330,7 @@ public final class PropertiesLoader {
             return defaults.getProperty("env");
         }
     }
- 
+
     // -------- URL/file loader --------
     private static Properties loadFromUrlOrFileSpec(String spec) throws IOException {
         try {
@@ -316,9 +352,9 @@ public final class PropertiesLoader {
             }
         }
     }
- 
+
     // -------- Helpers --------							
- 
+
     /**
      * Returns a prefix like "[ClassName.methodName] " for use in exception messages.
      */
@@ -335,17 +371,17 @@ public final class PropertiesLoader {
         String urlSpec = firstNonBlank(getSystemPropertyIgnoreCase("configUrl"), getEnvVarIgnoreCase("CONFIG_URL"));
         return (isNonBlank(urlSpec)) ? ("URL::" + urlSpec) : ("CLASSPATH::" + normalizedEnv);
     }
- 
+
     private static ClassLoader cl() {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         return (cl != null) ? cl : PropertiesLoader.class.getClassLoader();
     }
- 
-											
+
+											 
     private static boolean isNonBlank(String s) {
         return s != null && !s.trim().isEmpty();
     }
- 
+
     // Unified "first non-blank" finder
     private static String firstNonBlank(String... values) {
         for (String value : values)
@@ -353,13 +389,13 @@ public final class PropertiesLoader {
                 return value;
         return null;
     }
- 
+
     // Normalize env values consistently
     private static String normalizeEnv(String env) {
         return env == null ? null : env.trim().toLowerCase(Locale.ROOT);
     }
 												   
- 
+
     private static Properties tryLoadFromClasspath(String resourcePath) throws IOException {
         try (InputStream in = cl().getResourceAsStream(resourcePath)) {
             if (in == null) return null;
@@ -374,8 +410,6 @@ public final class PropertiesLoader {
     // Lightweight browser enum + normalizer
     public enum Browser {
         CHROME, FIREFOX, EDGE, SAFARI;
-  
- 
         static Browser fromStringStrict(String raw) {
             String s = (raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT));
             switch (s) {
@@ -398,13 +432,13 @@ public final class PropertiesLoader {
                         "Unsupported browser '" + raw + "'. Allowed: chrome, firefox, edge, safari");
             }
         }
- 
+
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
     }
- 
+
     // Collapse duplicate code in effectiveBrowser() / effectiveBrowserCached()
     private static String resolveBrowser(Properties props) {
         String fromProps = props.getProperty(PROPKEY_BROWSER); // case-insensitive key
@@ -413,38 +447,38 @@ public final class PropertiesLoader {
         }
         return Browser.fromStringStrict(DEFAULT_BROWSER).toString();
     }
- 
+
     public static String effectiveBrowser() throws IOException {
         String sys = getSystemPropertyIgnoreCase(SYS_PROP_BROWSER); // case-insensitive system property
         if (isNonBlank(sys)) return Browser.fromStringStrict(sys).toString();
- 
+
         String env = getEnvVarIgnoreCase(ENVVAR_BROWSER); // case-insensitive env var
         if (isNonBlank(env)) return Browser.fromStringStrict(env).toString();
- 
+
         return resolveBrowser(load());
     }
- 
+
     public static String effectiveBrowserCached() throws IOException {
         String sys = getSystemPropertyIgnoreCase(SYS_PROP_BROWSER);
         if (isNonBlank(sys)) return Browser.fromStringStrict(sys).toString();
- 
+
         String env = getEnvVarIgnoreCase(ENVVAR_BROWSER);
         if (isNonBlank(env)) return Browser.fromStringStrict(env).toString();
- 
+
         return resolveBrowser(loadCached());
     }
- 
+
     // Optional: enum-returning helpers for stronger typing
     public static Browser effectiveBrowserAsEnum() throws IOException {
         return Browser.fromStringStrict(effectiveBrowser());
     }
- 
+
     public static Browser effectiveBrowserAsEnumCached() throws IOException {
         return Browser.fromStringStrict(effectiveBrowserCached());
     }
- 
+
     // ===== NEW ===== Generic, reusable case-insensitive lookups for System props & env vars
- 
+
     /**
      * Case-insensitive lookup of a JVM system property name.
      * Supports -Denv=..., -DENV=..., -DeNv=..., etc.
@@ -454,7 +488,7 @@ public final class PropertiesLoader {
         // Fast path: common exact
         String direct = System.getProperty(key);
         if (isNonBlank(direct)) return direct;
- 
+
         // Fallback: scan for any key equalsIgnoreCase
         for (String name : System.getProperties().stringPropertyNames()) {
             if (key.equalsIgnoreCase(name)) {
@@ -464,7 +498,7 @@ public final class PropertiesLoader {
         }
         return null;
     }
- 
+
     /**
      * Case-insensitive lookup of an environment variable name.
      * Useful across platforms; on Linux env names are case-sensitive,
@@ -474,7 +508,7 @@ public final class PropertiesLoader {
         if (!isNonBlank(key)) return null;
         String direct = System.getenv(key);
         if (isNonBlank(direct)) return direct;
- 
+
         for (Map.Entry<String, String> e : System.getenv().entrySet()) {
             if (key.equalsIgnoreCase(e.getKey())) {
                 if (isNonBlank(e.getValue())) return e.getValue();
