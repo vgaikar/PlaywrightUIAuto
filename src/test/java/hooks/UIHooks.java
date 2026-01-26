@@ -8,10 +8,6 @@ import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
  
 public class UIHooks {
-	@Before(order=0)
-	public void playwrightSetup() {
-		System.out.println("This is to initialize playwright, context and page for browser interaction.");
-	}
 	@After
 	public void tearDown(Scenario scenario) {
 		System.out.println("*** Screenshot condition need to update for all steps performed. ***********");	

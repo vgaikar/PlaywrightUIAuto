@@ -15,7 +15,7 @@ import com.cro.listeners.LogBridge;
 
 public class ScenarioHooks {
 
-	@Before
+	@Before(order=0)
 	public void before(Scenario scenario) throws IOException {
 
 		String browser = PropertiesLoader.effectiveBrowserCached();
