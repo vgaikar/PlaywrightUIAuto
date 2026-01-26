@@ -199,7 +199,7 @@
 			<id>parallel</id>
 			<properties>
 				<!-- Tune per node; override in CI if needed -->
-				<dp.threads>12</dp.threads>
+				<dp.threads>4</dp.threads>
 				<fork.count>1</fork.count>
 				<cucumber.tags></cucumber.tags>
 				<!-- NOTE: we do NOT set <env> here; pass -Denv=val|dev|uat	when
