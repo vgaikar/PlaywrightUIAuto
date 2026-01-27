@@ -17,6 +17,9 @@
 		<maven.build.timestamp.format>d-MMM-yy_HH-mm-ss</maven.build.timestamp.format>
 		<!-- Centralized Cucumber version -->
 		<cucumber.version>7.33.0</cucumber.version>
+		<!-- Centralized place for fork and thread count if nothing else defines
+		these properties, use these sane defaults. -->
+		<dp.threads>1</dp.threads>
 	</properties>
 	<dependencies>
 		<!-- Cucumber Java bindings -->
@@ -135,8 +138,13 @@
 					</suiteXmlFiles>
 
 					<!-- JVM-level isolation; value from profile/-D -->
-					<forkCount>${fork.count}</forkCount>
+					<forkCount>1</forkCount> <!-- hard coded since multiple forks
+					create trouble in parallel run -->
+
 					<reuseForks>true</reuseForks>
+					<!-- Scenario-level concurrency for TestNG DataProvider -->
+					<parallel>tests</parallel>
+					<dataproviderthreadcount>${dp.threads}</dataproviderthreadcount>
 
 					<systemPropertyVariables>
 						<!-- Extent (kept as-is, with timestamped outputs) -->
@@ -151,8 +159,6 @@
 						<screenshot.dir>extent-reports/screenshots/</screenshot.dir>
 						<screenshot.rel.path>../screenshots/</screenshot.rel.path>
 
-						<!-- Scenario-level concurrency for TestNG DataProvider -->
-						<dataproviderthreadcount>${dp.threads}</dataproviderthreadcount>
 
 						<!-- Optional: tags and env -->
 						<cucumber.filter.tags>${cucumber.tags}</cucumber.filter.tags>
@@ -188,7 +194,6 @@
 			</activation>
 			<properties>
 				<dp.threads>1</dp.threads>
-				<fork.count>1</fork.count>
 				<cucumber.tags></cucumber.tags>
 				<!-- NOTE: we do NOT set <env> here; your framework will
 				fallback to default.properties -->
@@ -200,7 +205,6 @@
 			<properties>
 				<!-- Tune per node; override in CI if needed -->
 				<dp.threads>4</dp.threads>
-				<fork.count>1</fork.count>
 				<cucumber.tags></cucumber.tags>
 				<!-- NOTE: we do NOT set <env> here; pass -Denv=val|dev|uat	when
 				needed -->
