@@ -20,6 +20,7 @@
 		<!-- Centralized place for fork and thread count if nothing else defines
 		these properties, use these sane defaults. -->
 		<dp.threads>1</dp.threads>
+	<run.id>${maven.build.timestamp}</run.id> <!--run.id (default + CI override) for playwright session storage-->																																									
 	</properties>
 	<dependencies>
 		<!-- Cucumber Java bindings -->
@@ -143,11 +144,16 @@
 
 					<reuseForks>true</reuseForks>
 					<!-- Scenario-level concurrency for TestNG DataProvider -->
-					<parallel>tests</parallel>
+					<!-- 🔑 THIS is what controls Cucumber scenario parallelism -->
 					<dataproviderthreadcount>${dp.threads}</dataproviderthreadcount>
 
+								<!-- No <parallel> needed for Cucumber -->
+					<!-- No <threadCount> needed -->			   
 					<systemPropertyVariables>
-						<!-- Extent (kept as-is, with timestamped outputs) -->
+						<!-- Make dp.threads visible at runtime -->
+						<dp.threads>${dp.threads}</dp.threads>
+ 
+						<!-- Extent -->
 						<extent.reporter.spark.start>true</extent.reporter.spark.start>
 						<extent.reporter.spark.out>
 							extent-reports/html/index_${maven.build.timestamp}.html</extent.reporter.spark.out>
@@ -163,7 +169,7 @@
 						<!-- Optional: tags and env -->
 						<cucumber.filter.tags>${cucumber.tags}</cucumber.filter.tags>
 						<user.timezone>UTC</user.timezone>
-
+<run.id>${run.id}</run.id>
 						<!-- Optional: make all Log4j2 loggers async without
 						changing XML -->
 						<!--

@@ -1,4 +1,5 @@
 package com.cro.playwright;
+import java.nio.file.Path;
 import java.util.List;
 import com.microsoft.playwright.*;
 public final class BrowserManager {
@@ -12,12 +13,16 @@ public final class BrowserManager {
     private static final ThreadLocal<String> TL_BROWSER_TYPE = new ThreadLocal<>();
     private BrowserManager() {
         // prevent instantiation
-    }
+    }     
     // =========================
-    // Playwright + Browser init
+    // Playwright + Browser initialization
     // =========================
-    public static synchronized void initBrowser(String browserType) {
-        if (TL_PLAYWRIGHT.get() != null) {
+    public static synchronized void initBrowser(String browserType) {    	
+        if (TL_PLAYWRIGHT.get() != null) { 
+        	System.out.println(
+                    "[BrowserManager] Browser already initialized for thread=" +
+                    Thread.currentThread().getName()
+                );
             return; // already initialized for this thread
         }
         TL_BROWSER_TYPE.set(browserType.toLowerCase());
@@ -52,22 +57,47 @@ public final class BrowserManager {
                 throw new IllegalArgumentException("Unsupported browser: " + browserType);
         }
         TL_BROWSER.set(browser);
+        System.out.println(
+        	    "BrowserHash=" + System.identityHashCode(TL_BROWSER.get()) +
+        	    " Thread=" + Thread.currentThread().getName()
+        	);
+ 
     }
     // =========================
     // Context + Page lifecycle
     // =========================
+// Public default method (NO logic here)
     public static void createContext() {
-        Browser browser = TL_BROWSER.get();
+        createContext(null);
+    }
+    public static void createContext(Path storageState) {
+ 
+        Browser browser = TL_BROWSER.get();        
         if (browser == null) {
             throw new IllegalStateException("Browser not initialized. Call initBrowser() first.");
         }
-        BrowserContext context = browser.newContext(
+ 
+        Browser.NewContextOptions options =
                 new Browser.NewContextOptions()
-                        .setViewportSize(null) // real maximized window
-        );
+                        .setViewportSize(null); // ✅ real maximize
+ 
+        if (storageState != null) {
+            options.setStorageStatePath(storageState);
+        }
+ 
+        BrowserContext context = browser.newContext(options);
         TL_CONTEXT.set(context);
         TL_PAGE.set(context.newPage());
     }
+    public static BrowserContext getContext() {
+        BrowserContext context = TL_CONTEXT.get();
+        if (context == null) {
+            throw new IllegalStateException("BrowserContext not initialized. Did you call createContext()?");
+        }
+        return context;
+    }
+ 
+    
     public static Page getPage() {
         Page page = TL_PAGE.get();
         if (page == null) {

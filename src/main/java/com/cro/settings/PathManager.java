@@ -22,7 +22,8 @@ public final class PathManager {
 		        Path logDir,
 		        Path screenshotDir,
 		        Path videoDir,
-		        Path downloadDir
+		        Path downloadDir,
+		        Path sessionDir
 		    ) { }
 	 /** Reads base.dir from PathConfig (defaults to ${user.dir}) and normalizes to absolute Path. */
 	    private static Path baseDir() {
@@ -35,6 +36,7 @@ public final class PathManager {
 	    public static Path screenshotDir() { return Holder.INSTANCE.screenshotDir; }
 	    public static Path videoDir()      { return Holder.INSTANCE.videoDir; }
 	    public static Path downloadDir()   { return Holder.INSTANCE.downloadDir; }
+	    public static Path sessionDir()    { return Holder.INSTANCE.sessionDir; }
 	    /** Ensure output folders exist; safe to call multiple times and in parallel. */
 	    public static void createRequiredDirs() {
 	        try {
@@ -43,6 +45,7 @@ public final class PathManager {
 	            Files.createDirectories(screenshotDir());
 	            Files.createDirectories(videoDir());
 	            Files.createDirectories(downloadDir());
+	            Files.createDirectories(sessionDir());
 	        } catch (IOException e) {
 	            throw new RuntimeException("Error: Failed to create one or more directories", e);
 	        }
@@ -56,8 +59,8 @@ public final class PathManager {
 	        Path screenshots = resolveUnder(base, PathConfig.get("screenshot.dir", "extent-reports/screenshots"));
 	        Path video       = resolveUnder(base, PathConfig.get("video.dir", "extent-reports/screenshots"));
 	        Path download    = resolveUnder(base, PathConfig.get("download.dir", "downloads"));
- 
-	        return new ResolvedPaths(base, report, log, screenshots, video, download);
+	        Path session = resolveUnder(base,PathConfig.get("session.dir", "target/sessions/${run.id}"));
+	        return new ResolvedPaths(base, report, log, screenshots, video, download, session);
 	    }
  
 	    private static Path resolveUnder(Path base, String spec) {
