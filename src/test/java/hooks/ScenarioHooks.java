@@ -2,6 +2,7 @@ package hooks;
 import java.io.IOException;
 import java.nio.file.Path;
  
+import com.cro.extentreporting.ExtentReportMetada;
 import com.cro.listeners.ScenarioContext;
 import com.cro.playwright.BrowserInfo;
 import com.cro.playwright.BrowserManager;
@@ -20,42 +21,43 @@ import io.cucumber.java.Scenario;
 public class ScenarioHooks {
 	@Before(order = 0)
 	public void before(Scenario scenario) throws IOException {
- 
+		 // 🔐 READ CREDENTIALS FROM PROPERTIES (NEW)	  
 	    String browser = PropertiesLoader.effectiveBrowserCached();
+	    String role = RoleResolver.resolve(scenario);
+	    final String username=PropertiesLoader.getUsernameForRole(role);
+	    //Push user and role in Extent report
+	    ExtentReportMetada.put("User [Role: " + role + "]", username);
+	    final String password = PropertiesLoader.getPasswordForRole(role);
 	    BrowserManager.initBrowser(browser);
-	    BrowserInfo.captureOnce(BrowserManager.getBrowserVersion());  //this is to get browser version for extent report this is one time activity
-	    String role=RoleResolver.resolve(scenario);    
- 
-	    Path sessionPath = SessionManager.getOrCreateSession(role, () -> {
-	        // 🔐 Login flow ONLY for first thread
+	    BrowserInfo.captureOnce(BrowserManager.getBrowserVersion());
+	    Path sessionPath = SessionManager.getOrCreateSession(role,username, () -> {
+	        // 🔐 First thread only per role
 	        BrowserManager.createContext();
+ 
 	        try {
-				BrowserManager.getPage().navigate(PropertiesLoader.loadCached().getProperty("base.url"));
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+	            BrowserManager.getPage().navigate(
+	                PropertiesLoader.loadCached().getProperty("base.url")
+	            );	            
+	        } catch (IOException e) {
+	            throw new RuntimeException(e);
+	        }
  
-	        LoginFlow.performLogin(role);
- 
+	        LoginFlow.performLogin(role, username, password);
 	        // 🔐 Persist session
 	        BrowserManager.getContext().storageState(
-	                new BrowserContext.StorageStateOptions()
-	                        .setPath(PathManager.sessionDir().resolve(role + ".json"))
+	            new BrowserContext.StorageStateOptions()
+	                .setPath(PathManager.sessionDir().resolve(role + "_" + username+ ".json"))
 	        );
- 
-	        BrowserManager.closeContext(); // cleanup temp login context
+	        BrowserManager.closeContext();
 	    });
  
-	    // 🚀 Always start scenario with fresh context
+	    // 🚀 Always fresh context per scenario
 	    BrowserManager.createContext(sessionPath);
 	    System.out.println(
-	    	    "Thread=" + Thread.currentThread().getName() +
-	    	    " BrowserHash=" + System.identityHashCode(BrowserManager.getBrowserVersion())
-	    	);
+	        "Thread=" + Thread.currentThread().getName() +
+	        " BrowserHash=" + System.identityHashCode(BrowserManager.getBrowserVersion())
+	    );	 
 	}
- 
-
 	@BeforeStep
 	public void beforeStep() {
 		ScenarioContext.markStepStart();

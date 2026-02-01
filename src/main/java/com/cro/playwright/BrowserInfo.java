@@ -1,6 +1,14 @@
+/**
+* Publishes browser version information to Extent Reports exactly once per test run.
+*
+* Designed for parallel execution: the first scenario that initializes the browser
+* records the version, and all subsequent scenarios skip publishing to avoid
+* duplicate or conflicting system info entries.
+*/
+ 
 package com.cro.playwright;
  
-import com.aventstack.extentreports.service.ExtentService;
+import com.cro.extentreporting.ExtentReportMetada;
  
 public final class BrowserInfo {
  
@@ -10,11 +18,11 @@ public final class BrowserInfo {
         if (!published) {
             synchronized (BrowserInfo.class) {
                 if (!published) {
-                    ExtentService.getInstance()
-                            .setSystemInfo("Browser Version", version);
+                	ExtentReportMetada.put("Browser Version", version);                    
                     published = true;
                 }
             }
         }
     }
 }
+ 
