@@ -59,7 +59,7 @@ public final class PathManager {
 	        Path screenshots = resolveUnder(base, PathConfig.get("screenshot.dir", "extent-reports/screenshots"));
 	        Path video       = resolveUnder(base, PathConfig.get("video.dir", "extent-reports/screenshots"));
 	        Path download    = resolveUnder(base, PathConfig.get("download.dir", "downloads"));
-	        Path session = resolveUnder(base,PathConfig.get("session.dir", "target/sessions/${run.id}"));
+	        Path session = resolveUnder(base,PathConfig.get("session.dir", "sessions/${run.id}"));
 	        return new ResolvedPaths(base, report, log, screenshots, video, download, session);
 	    }
  

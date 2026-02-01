@@ -111,9 +111,8 @@ public final class PropertiesLoader {
         // 3) Fallbacks (in exact order), first resolve env if not found comeout (check in app-default), if found read URL, URL empty throw error
         Properties testDefaultProperties = tryLoadFromClasspath(TEST_DEFAULT_ENV_FILE);
         if (testDefaultProperties != null) {
-            String fallbackEnv = testDefaultProperties.getProperty("env");           
-            if (isNonBlank(fallbackEnv)) {
-            	System.setProperty("env", normalizeEnv(fallbackEnv));
+            String fallbackEnv = testDefaultProperties.getProperty("env");        
+            if (isNonBlank(fallbackEnv)) {            	
             	String baseUrl = testDefaultProperties.getProperty("base.url");
             	if (!isNonBlank(baseUrl)) {
             		throw new IllegalStateException("Missing required property 'base.url' in " + TEST_DEFAULT_ENV_FILE);
@@ -125,8 +124,7 @@ public final class PropertiesLoader {
         Properties mainDefaultProperties = tryLoadFromClasspath(MAIN_DEFAULT_ENV_FILE);
         if (mainDefaultProperties != null) {
             String fallbackEnv = mainDefaultProperties.getProperty("env");            
-            if (isNonBlank(fallbackEnv)) {
-            	System.setProperty("env", normalizeEnv(fallbackEnv));
+            if (isNonBlank(fallbackEnv)) {            	
             	String baseUrl = mainDefaultProperties.getProperty("base.url");
                 if (!isNonBlank(baseUrl)) {
                     throw new IllegalStateException("Missing required property 'base.url' in " + MAIN_DEFAULT_ENV_FILE);
@@ -208,8 +206,6 @@ public final class PropertiesLoader {
                         String fallbackEnv = testCachedDefaultProperties.getProperty("env");
                         String baseUrl = testCachedDefaultProperties.getProperty("base.url");
                         if (isNonBlank(fallbackEnv)) {
-                            System.setProperty("env", normalizeEnv(fallbackEnv));
-
                             if (!isNonBlank(baseUrl)) {
                                 throw new IllegalStateException(
                                     "Missing required property 'base.url' in " + TEST_DEFAULT_ENV_FILE
@@ -516,4 +512,29 @@ public final class PropertiesLoader {
         }
         return null;
     }
+ // =======================================================
+ // ROLE BASED CREDENTIAL ACCESS (ADDITION ONLY)
+ // =======================================================
+
+ public static String getRequiredPropertyCached(String key) throws IOException {
+     Properties props = loadCached(); // existing cached loader
+     String value = props.getProperty(key);
+
+     if (value == null || value.trim().isEmpty()) {
+         throw new IllegalStateException(
+             "Missing required property: '" + key +
+             "' for env=" + resolveEnvStrict()
+         );
+     }
+     return value.trim();
+ }
+
+ public static String getUsernameForRole(String role) throws IOException {
+     return getRequiredPropertyCached(role + ".username");
+ }
+
+ public static String getPasswordForRole(String role) throws IOException {
+     return getRequiredPropertyCached(role + ".password");
+ }
+
 }

@@ -28,23 +28,11 @@ public final class SessionManager {
                 // BrowserManager will create context & page
                 loginFlow.run(); // login must save storageState externally
  
-                if (!Files.exists(sessionFile)) {
-                    throw new IllegalStateException(
-                        "Login flow completed but session file was not created for role: " + role
-                    );
-                }
- 
                 return sessionFile;
- 
  
             } catch (Exception e) {
             	throw new RuntimeException("Session creation failed for role: " + role, e);
-            }finally {
-            	if (Files.exists(sessionFile)) {
-                    LOCKS.remove(role);
-                }
             }
         }
     }
 }
- 
