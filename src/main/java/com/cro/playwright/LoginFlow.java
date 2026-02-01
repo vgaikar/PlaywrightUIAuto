@@ -1,38 +1,26 @@
+/*
+* IMP: LoginFlow → Business logic + session handling
+ 
+This is where your role + session JSON logic belongs.
+*/
 package com.cro.playwright;
  
-import com.microsoft.playwright.Page;
+import com.cro.pages.LoginPage;
  
-public final class LoginFlow {
+public class LoginFlow {
  
-    private LoginFlow() {}
+    private final LoginPage loginPage;
  
-    public static void performLogin(String role, String username, String password) {
+    public LoginFlow(LoginPage loginPage) {
+        this.loginPage = loginPage;
+    }
  
-        Page page = BrowserManager.getPage();
- 
-        // Placeholder UI logic – you will implement later
-        /*
-        page.fill("#username", username);
-        page.fill("#password", password);
-        page.click("#login");
-        */
-        //page.waitForURL("**/dashboard");
-        
-        System.out.println("===============DUMMY Login flow==================");
-        System.out.println("[LOGIN] START");
-        System.out.println("[LOGIN] role      = " + role);
-        System.out.println("[LOGIN] username  = " + username);
-        System.out.println("[LOGIN] password  = " + password);
-        System.out.println("[LOGIN] thread    = " + Thread.currentThread().getName());
-        System.out.println("[LOGIN] END");
-        System.out.println("=================================");
-        
- 
-        System.out.println(
-            "[LOGIN] Logged in as role=" + role +
-            " user=" + username +
-            " thread=" + Thread.currentThread().getName()
-        );
+    public void performLogin(String role, String user, String password) {
+    	System.out.println(
+    	        "[FLOW] LoginFlow invoked | role=" + role +
+    	        " user=" + user +
+    	        " thread=" + Thread.currentThread().getName()
+    	    );
+        loginPage.login(user, password);
     }
 }
- 

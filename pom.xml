@@ -20,7 +20,7 @@
 		<!-- Centralized place for fork and thread count if nothing else defines
 		these properties, use these sane defaults. -->
 		<dp.threads>1</dp.threads>
-	<run.id>${maven.build.timestamp}</run.id> <!--run.id (default + CI override) for playwright session storage-->																																									
+		<run.id>${maven.build.timestamp}</run.id> <!--run.id (default + CI override) for playwright session storage-->
 	</properties>
 	<dependencies>
 		<!-- Cucumber Java bindings -->
@@ -38,7 +38,12 @@
 			<scope>test</scope>
 		</dependency>
 
-
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-picocontainer</artifactId>
+			<version>${cucumber.version}</version>
+			<scope>test</scope>
+		</dependency>
 		<!-- TestNG framework -->
 		<dependency>
 			<groupId>org.testng</groupId>
@@ -147,12 +152,12 @@
 					<!-- 🔑 THIS is what controls Cucumber scenario parallelism -->
 					<dataproviderthreadcount>${dp.threads}</dataproviderthreadcount>
 
-								<!-- No <parallel> needed for Cucumber -->
-					<!-- No <threadCount> needed -->			   
+					<!-- No <parallel> needed for Cucumber -->
+					<!-- No <threadCount> needed -->
 					<systemPropertyVariables>
 						<!-- Make dp.threads visible at runtime -->
 						<dp.threads>${dp.threads}</dp.threads>
- 
+
 						<!-- Extent -->
 						<extent.reporter.spark.start>true</extent.reporter.spark.start>
 						<extent.reporter.spark.out>
@@ -169,7 +174,7 @@
 						<!-- Optional: tags and env -->
 						<cucumber.filter.tags>${cucumber.tags}</cucumber.filter.tags>
 						<user.timezone>UTC</user.timezone>
-<run.id>${run.id}</run.id>
+						<run.id>${run.id}</run.id>
 						<!-- Optional: make all Log4j2 loggers async without
 						changing XML -->
 						<!--
